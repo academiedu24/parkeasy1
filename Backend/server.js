@@ -9,9 +9,18 @@ var app = express()
 app.use(express.json())
 app.use(
     cors({
-        origin: "*",
-    }),
-)
+        origin: [
+            "https://parkeasy1-itbk.vercel.app",
+            "https://parkeasy1.onrender.com",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ],
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true,
+    })
+);
+
 
 const PORT = process.env.PORT || 3000
 const jwtSecret = process.env.JWT_SECRET || "your-secret-key-here"
