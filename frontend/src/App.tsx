@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { AuthProvider } from "./context/AuthContext"
+import { ParkingProvider } from "./context/ParkingContext"
+import ProtectedRoute from "./components/ProtectedRoute"
 import LoginPage from "./pages/LoginPage"
 import RegisterPage from "./pages/RegisterPage"
 import DashboardLayout from "./layouts/DashboardLayout"
@@ -10,20 +13,31 @@ import ProfilePage from "./pages/ProfilePage"
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/" element={<DashboardLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="parking-spaces" element={<ParkingSpacesPage />} />
-          <Route path="my-parking" element={<MyParkingPage />} />
-          <Route path="payment" element={<PaymentPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <ParkingProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="parking-spaces" element={<ParkingSpacesPage />} />
+              <Route path="my-parking" element={<MyParkingPage />} />
+              <Route path="payment" element={<PaymentPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ParkingProvider>
+    </AuthProvider>
   )
 }
 

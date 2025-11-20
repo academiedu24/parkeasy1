@@ -1,17 +1,28 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { CreditCard, Calendar, Lock, DollarSign } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
+import { CreditCard, Calendar, Lock, DollarSign, CheckCircle } from "lucide-react"
 
 export default function PaymentPage() {
+    const navigate = useNavigate()
+    const location = useLocation()
+    const { duration = "0m", cost = 0 } = location.state || {}
+
     const [paymentData, setPaymentData] = useState({
         cardNumber: "",
         cardName: "",
         expiryDate: "",
         cvv: "",
     })
+    const [processing, setProcessing] = useState(false)
+
+    useEffect(() => {
+        if (!duration || cost === 0) {
+            console.log("[v0] No payment data, redirecting to my-parking")
+        }
+    }, [duration, cost])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setPaymentData({ ...paymentData, [e.target.name]: e.target.value })
@@ -19,9 +30,18 @@ export default function PaymentPage() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        console.log("Payment:", paymentData)
-        alert("Pago procesado exitosamente!")
+        setProcessing(true)
+
+        setTimeout(() => {
+            setProcessing(false)
+            alert("Pago procesado exitosamente!")
+            navigate("/dashboard")
+        }, 2000)
     }
+
+    const subtotal = cost
+    const tax = subtotal * 0.19
+    const total = subtotal + tax
 
     return (
         <div className="space-y-6">
@@ -113,8 +133,15 @@ export default function PaymentPage() {
                                     <p className="secure-text">Tus datos de pago están protegidos con encriptación SSL de 256 bits.</p>
                                 </div>
 
-                                <button type="submit" className="btn btn-primary">
-                                    Procesar Pago
+                                <button type="submit" className="btn btn-primary" disabled={processing}>
+                                    {processing ? (
+                                        <>
+                                            <CheckCircle className="w-4 h-4 animate-spin" style={{ width: "1rem", height: "1rem" }} />
+                                            Procesando...
+                                        </>
+                                    ) : (
+                                        "Procesar Pago"
+                                    )}
                                 </button>
                             </form>
                         </div>
@@ -134,7 +161,7 @@ export default function PaymentPage() {
                                 </div>
                                 <div className="summary-row">
                                     <span>Tiempo:</span>
-                                    <span className="summary-row-value">2h 15m</span>
+                                    <span className="summary-row-value">{duration}</span>
                                 </div>
                                 <div className="summary-row">
                                     <span>Tarifa por hora:</span>
@@ -142,11 +169,11 @@ export default function PaymentPage() {
                                 </div>
                                 <div className="summary-row summary-divider">
                                     <span>Subtotal:</span>
-                                    <span className="summary-row-value">$4.50</span>
+                                    <span className="summary-row-value">${subtotal.toFixed(2)}</span>
                                 </div>
                                 <div className="summary-row">
                                     <span>IVA (19%):</span>
-                                    <span className="summary-row-value">$0.86</span>
+                                    <span className="summary-row-value">${tax.toFixed(2)}</span>
                                 </div>
                             </div>
 
@@ -154,7 +181,7 @@ export default function PaymentPage() {
                                 <span className="total-label">Total:</span>
                                 <div className="total-amount">
                                     <DollarSign style={{ width: "1.5rem", height: "1.5rem", color: "var(--color-secondary)" }} />
-                                    <span className="total-value">5.36</span>
+                                    <span className="total-value">{total.toFixed(2)}</span>
                                 </div>
                             </div>
 

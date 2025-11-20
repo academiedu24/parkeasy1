@@ -1,19 +1,23 @@
+"use client"
+
 import { User, Mail, Phone, Car, Calendar, Edit2 } from "lucide-react"
+import { useAuth } from "../context/AuthContext"
 
 export default function ProfilePage() {
+    const { user } = useAuth()
+
+    if (!user) return null
+
     const userProfile = {
-        name: "Usuario Demo",
-        email: "demo@parkeasy.com",
-        phone: "+57 300 123 4567",
-        memberSince: "Enero 2024",
-        totalVisits: 45,
-        totalSpent: "$245.50",
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        memberSince: "Enero 2025",
+        totalVisits: 0,
+        totalSpent: "$0.00",
     }
 
-    const registeredVehicles = [
-        { id: 1, plate: "ABC-123", brand: "Toyota", model: "Corolla", color: "Blanco" },
-        { id: 2, plate: "XYZ-789", brand: "Honda", model: "Civic", color: "Negro" },
-    ]
+    const registeredVehicles = user.vehicles
 
     return (
         <div className="space-y-6">
@@ -27,7 +31,7 @@ export default function ProfilePage() {
                     <div className="card">
                         <div className="card-content">
                             <div className="profile-avatar-section">
-                                <div className="profile-avatar">U</div>
+                                <div className="profile-avatar">{user.name.charAt(0).toUpperCase()}</div>
                                 <h2 className="profile-name">{userProfile.name}</h2>
                                 <p className="profile-email">{userProfile.email}</p>
 
@@ -112,22 +116,26 @@ export default function ProfilePage() {
 
                         <div className="card-content">
                             <div className="vehicles-list">
-                                {registeredVehicles.map((vehicle) => (
-                                    <div key={vehicle.id} className="vehicle-card">
-                                        <div className="vehicle-info">
-                                            <div className="stat-icon blue">
-                                                <Car style={{ width: "1.5rem", height: "1.5rem", color: "white" }} />
+                                {registeredVehicles.length > 0 ? (
+                                    registeredVehicles.map((vehicle, index) => (
+                                        <div key={index} className="vehicle-card">
+                                            <div className="vehicle-info">
+                                                <div className="stat-icon blue">
+                                                    <Car style={{ width: "1.5rem", height: "1.5rem", color: "white" }} />
+                                                </div>
+                                                <div>
+                                                    <p className="vehicle-plate">{vehicle.plate}</p>
+                                                    <p className="vehicle-details">{vehicle.model}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="vehicle-plate">{vehicle.plate}</p>
-                                                <p className="vehicle-details">
-                                                    {vehicle.brand} {vehicle.model} - {vehicle.color}
-                                                </p>
-                                            </div>
+                                            <button className="delete-btn">Eliminar</button>
                                         </div>
-                                        <button className="delete-btn">Eliminar</button>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    <p style={{ textAlign: "center", color: "var(--color-gray-500)", padding: "2rem" }}>
+                                        No hay vehículos registrados
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

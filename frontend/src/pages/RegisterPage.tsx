@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Car, Lock, Mail, User, Phone } from "lucide-react"
+import { Car, Lock, Mail, User, Phone, Loader2 } from "lucide-react"
+import { useAuth } from "../context/AuthContext"
 
 export default function RegisterPage() {
     const [formData, setFormData] = useState({
@@ -14,21 +14,33 @@ export default function RegisterPage() {
         password: "",
         confirmPassword: "",
     })
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
     const navigate = useNavigate()
+    const { register } = useAuth()
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value })
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implement registration logic
+        setError("")
+
         if (formData.password !== formData.confirmPassword) {
-            alert("Las contraseñas no coinciden")
+            setError("Las contraseñas no coinciden")
             return
         }
-        console.log("Register:", formData)
-        navigate("/login")
+
+        setLoading(true)
+        try {
+            await register(formData.name, formData.email, formData.password, formData.phone)
+            navigate("/dashboard")
+        } catch (err) {
+            setError("Error al registrarse. Intenta de nuevo.")
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -123,9 +135,18 @@ export default function RegisterPage() {
                         </div>
                     </div>
 
-                    <button type="submit" className="btn btn-secondary">
-                        Registrarse
+                    <button type="submit" className="btn btn-secondary" disabled={loading}>
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{ width: "1rem", height: "1rem" }} />
+                                Registrando...
+                            </>
+                        ) : (
+                            "Registrarse"
+                        )}
                     </button>
+
+                    {error && <p style={{ color: "var(--color-red-600)", fontSize: "0.875rem", marginTop: "0.5rem" }}>{error}</p>}
                 </form>
 
                 <p className="auth-footer">

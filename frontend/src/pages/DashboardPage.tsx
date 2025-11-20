@@ -1,39 +1,37 @@
-import { Car, DollarSign, Clock, CheckCircle } from "lucide-react"
+import { Car, CheckCircle, Clock } from "lucide-react"
+import { useParking } from "../context/ParkingContext"
 
 export default function DashboardPage() {
+    const { getAvailableCount, getOccupiedCount, parkingHistory } = useParking()
+
     const stats = [
         {
             icon: Car,
             label: "Espacios Totales",
-            value: "120",
+            value: "5",
             color: "blue",
         },
         {
             icon: CheckCircle,
             label: "Espacios Disponibles",
-            value: "45",
+            value: getAvailableCount().toString(),
             color: "green",
         },
         {
             icon: Clock,
             label: "Espacios Ocupados",
-            value: "75",
+            value: getOccupiedCount().toString(),
             color: "orange",
-        },
-        {
-            icon: DollarSign,
-            label: "Ingresos Hoy",
-            value: "$1,250",
-            color: "purple",
         },
     ]
 
-    const recentActivity = [
-        { id: 1, action: "Entrada", space: "A-12", plate: "ABC-123", time: "10:30 AM" },
-        { id: 2, action: "Salida", space: "B-05", plate: "XYZ-789", time: "10:15 AM" },
-        { id: 3, action: "Entrada", space: "C-08", plate: "DEF-456", time: "09:45 AM" },
-        { id: 4, action: "Salida", space: "A-03", plate: "GHI-012", time: "09:20 AM" },
-    ]
+    const recentActivity = parkingHistory.slice(0, 4).map((session, index) => ({
+        id: index + 1,
+        action: "Salida",
+        space: session.space,
+        plate: "Completado",
+        time: session.exitTime,
+    }))
 
     return (
         <div className="space-y-6">
@@ -63,20 +61,26 @@ export default function DashboardPage() {
                     <h2 className="card-title">Actividad Reciente</h2>
                 </div>
                 <div className="activity-list">
-                    {recentActivity.map((activity) => (
-                        <div key={activity.id} className="activity-item">
-                            <div className="activity-info">
-                                <div className={`activity-dot ${activity.action === "Entrada" ? "green" : "orange"}`} />
-                                <div>
-                                    <p className="activity-text">
-                                        {activity.action} - Espacio {activity.space}
-                                    </p>
-                                    <p className="activity-subtext">Placa: {activity.plate}</p>
+                    {recentActivity.length > 0 ? (
+                        recentActivity.map((activity) => (
+                            <div key={activity.id} className="activity-item">
+                                <div className="activity-info">
+                                    <div className={`activity-dot orange`} />
+                                    <div>
+                                        <p className="activity-text">
+                                            {activity.action} - Espacio {activity.space}
+                                        </p>
+                                        <p className="activity-subtext">{activity.plate}</p>
+                                    </div>
                                 </div>
+                                <span className="activity-time">{activity.time}</span>
                             </div>
-                            <span className="activity-time">{activity.time}</span>
-                        </div>
-                    ))}
+                        ))
+                    ) : (
+                        <p style={{ textAlign: "center", color: "var(--color-gray-500)", padding: "2rem" }}>
+                            No hay actividad reciente
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

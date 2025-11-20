@@ -1,21 +1,32 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Car, Lock, Mail } from "lucide-react"
+import { Car, Lock, Mail, Loader2 } from "lucide-react"
+import { useAuth } from "../context/AuthContext"
 
 export default function LoginPage() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
     const navigate = useNavigate()
+    const { login } = useAuth()
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implement authentication logic
-        console.log("Login:", { email, password })
-        navigate("/dashboard")
+        setError("")
+        setLoading(true)
+
+        try {
+            await login(email, password)
+            navigate("/dashboard")
+        } catch (err) {
+            setError("Error al iniciar sesión. Intenta de nuevo.")
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -70,9 +81,18 @@ export default function LoginPage() {
                         </a>
                     </div>
 
-                    <button type="submit" className="btn btn-primary">
-                        Iniciar Sesión
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{ width: "1rem", height: "1rem" }} />
+                                Iniciando...
+                            </>
+                        ) : (
+                            "Iniciar Sesión"
+                        )}
                     </button>
+
+                    {error && <p style={{ color: "var(--color-red-600)", fontSize: "0.875rem", marginTop: "0.5rem" }}>{error}</p>}
                 </form>
 
                 <p className="auth-footer">

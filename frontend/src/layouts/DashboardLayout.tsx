@@ -3,13 +3,15 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom"
 import { LayoutDashboard, Square, Car, CreditCard, User, LogOut, Menu, X } from "lucide-react"
 import { useState } from "react"
+import { useAuth } from "../context/AuthContext"
 
 export default function DashboardLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const navigate = useNavigate()
+    const { user, logout } = useAuth()
 
     const handleLogout = () => {
-        // TODO: Implement logout logic
+        logout()
         navigate("/login")
     }
 
@@ -79,10 +81,10 @@ export default function DashboardLayout() {
                         </button>
                         <div className="topbar-user">
                             <div className="user-info">
-                                <p className="user-name">Usuario Demo</p>
-                                <p className="user-email">demo@parkeasy.com</p>
+                                <p className="user-name">{user?.name || "Usuario"}</p>
+                                <p className="user-email">{user?.email || "email@example.com"}</p>
                             </div>
-                            <div className="user-avatar">U</div>
+                            <div className="user-avatar">{user?.name?.charAt(0).toUpperCase() || "U"}</div>
                         </div>
                     </div>
                 </header>

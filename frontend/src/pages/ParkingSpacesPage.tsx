@@ -1,39 +1,21 @@
 "use client"
 
 import { useState } from "react"
-import { Search } from "lucide-react"
-
-type ParkingSpace = {
-    id: string
-    number: string
-    floor: string
-    status: "available" | "occupied" | "reserved"
-    vehicle?: string
-}
+import { Search, CarIcon } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { useParking } from "../context/ParkingContext"
+import { useAuth } from "../context/AuthContext"
 
 export default function ParkingSpacesPage() {
     const [searchTerm, setSearchTerm] = useState("")
+    const [selectedSpace, setSelectedSpace] = useState<string | null>(null)
+    const [vehiclePlate, setVehiclePlate] = useState("")
+    const navigate = useNavigate()
 
-    const parkingSpaces: ParkingSpace[] = [
-        { id: "1", number: "A-01", floor: "Piso 1", status: "occupied", vehicle: "ABC-123" },
-        { id: "2", number: "A-02", floor: "Piso 1", status: "available" },
-        { id: "3", number: "A-03", floor: "Piso 1", status: "available" },
-        { id: "4", number: "A-04", floor: "Piso 1", status: "reserved" },
-        { id: "5", number: "B-01", floor: "Piso 2", status: "occupied", vehicle: "XYZ-789" },
-        { id: "6", number: "B-02", floor: "Piso 2", status: "available" },
-        { id: "7", number: "B-03", floor: "Piso 2", status: "available" },
-        { id: "8", number: "B-04", floor: "Piso 2", status: "available" },
-        { id: "9", number: "C-01", floor: "Piso 3", status: "available" },
-        { id: "10", number: "C-02", floor: "Piso 3", status: "occupied", vehicle: "DEF-456" },
-        { id: "11", number: "C-03", floor: "Piso 3", status: "available" },
-        { id: "12", number: "C-04", floor: "Piso 3", status: "available" },
-    ]
+    const { spaces, activeParking, startParking, getAvailableCount, getOccupiedCount } = useParking()
+    const { user } = useAuth()
 
-    const filteredSpaces = parkingSpaces.filter(
-        (space) =>
-            space.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            space.floor.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
+    const filteredSpaces = spaces.filter((space) => space.number.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -41,8 +23,6 @@ export default function ParkingSpacesPage() {
                 return "green"
             case "occupied":
                 return "red"
-            case "reserved":
-                return "yellow"
             default:
                 return "gray"
         }
@@ -54,16 +34,38 @@ export default function ParkingSpacesPage() {
                 return "Disponible"
             case "occupied":
                 return "Ocupado"
-            case "reserved":
-                return "Reservado"
             default:
                 return status
         }
     }
 
-    const availableCount = parkingSpaces.filter((s) => s.status === "available").length
-    const occupiedCount = parkingSpaces.filter((s) => s.status === "occupied").length
-    const reservedCount = parkingSpaces.filter((s) => s.status === "reserved").length
+    const handleStartParking = (spaceId: string) => {
+        if (!user) return
+
+        if (activeParking) {
+            alert("Ya tienes una sesión de parqueo activa")
+            return
+        }
+
+        const defaultVehicle = user.vehicles[0]?.plate || ""
+        setVehiclePlate(defaultVehicle)
+        setSelectedSpace(spaceId)
+    }
+
+    const confirmStartParking = () => {
+        if (!selectedSpace || !user || !vehiclePlate.trim()) {
+            alert("Por favor ingresa una placa de vehículo")
+            return
+        }
+
+        startParking(selectedSpace, vehiclePlate, user.id)
+        setSelectedSpace(null)
+        setVehiclePlate("")
+        navigate("/my-parking")
+    }
+
+    const availableCount = getAvailableCount()
+    const occupiedCount = getOccupiedCount()
 
     return (
         <div className="space-y-6">
@@ -83,8 +85,8 @@ export default function ParkingSpacesPage() {
                     <p className="summary-value red">{occupiedCount}</p>
                 </div>
                 <div className="summary-card yellow">
-                    <p className="summary-label yellow">Reservados</p>
-                    <p className="summary-value yellow">{reservedCount}</p>
+                    <p className="summary-label yellow">Total Espacios</p>
+                    <p className="summary-value yellow">5</p>
                 </div>
             </div>
 
@@ -109,12 +111,54 @@ export default function ParkingSpacesPage() {
                 {filteredSpaces.map((space) => (
                     <div key={space.id} className={`space-card ${getStatusColor(space.status)}`}>
                         <p className="space-number">{space.number}</p>
-                        <p className="space-floor">{space.floor}</p>
                         <span className="space-badge">{getStatusText(space.status)}</span>
                         {space.vehicle && <p className="space-vehicle">Placa: {space.vehicle}</p>}
+                        {space.status === "available" && !activeParking && (
+                            <button
+                                onClick={() => handleStartParking(space.id)}
+                                className="btn btn-primary"
+                                style={{ marginTop: "0.5rem", padding: "0.5rem", fontSize: "0.75rem" }}
+                            >
+                                Reservar
+                            </button>
+                        )}
                     </div>
                 ))}
             </div>
+
+            {selectedSpace && (
+                <div className="modal-backdrop" onClick={() => setSelectedSpace(null)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Iniciar Sesión de Parqueo</h3>
+                        <div className="form-group">
+                            <label className="form-label">Placa del Vehículo</label>
+                            <div className="input-wrapper">
+                                <CarIcon className="input-icon" />
+                                <input
+                                    type="text"
+                                    value={vehiclePlate}
+                                    onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
+                                    className="form-input"
+                                    placeholder="ABC-123"
+                                    maxLength={7}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.5rem" }}>
+                            <button
+                                onClick={() => setSelectedSpace(null)}
+                                className="btn"
+                                style={{ flex: 1, background: "var(--color-gray-200)", color: "var(--color-gray-700)" }}
+                            >
+                                Cancelar
+                            </button>
+                            <button onClick={confirmStartParking} className="btn btn-primary" style={{ flex: 1 }}>
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
