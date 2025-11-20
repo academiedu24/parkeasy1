@@ -127,7 +127,7 @@ app.post("/login", async (req, res) => {
                 id: userInfo.id,
                 name: userInfo.full_name,
                 email: userInfo.email,
-                phone: userInfo.phone,
+                phone: userInfo.phone_number,
                 createdAt: userInfo.created_at,
             },
         })
@@ -139,12 +139,12 @@ app.post("/login", async (req, res) => {
 
 // Register
 app.post("/register", async (req, res) => {
-    const { name, email, password, phone } = req.body
+    const { full_name, email, password, phone_number } = req.body
 
     try {
-        console.log("[Backend] Register request received:", { name, email, phone })
+        console.log("[Backend] Register request received:", { full_name, email, phone_number })
 
-        if (!name || !email || !password) {
+        if (!full_name || !email || !password) {
             return res.status(400).json({ message: "Todos los campos son requeridos" })
         }
 
@@ -157,8 +157,8 @@ app.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10)
 
         const newUser = await pool.query(
-            "INSERT INTO users (full_name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING *",
-            [name, email, hashedPassword, phone || null],
+            "INSERT INTO users (full_name, email, password, phone_number) VALUES ($1, $2, $3, $4) RETURNING *",
+            [full_name, email, hashedPassword, phone_number || null],
         )
 
         const userInfo = newUser.rows[0]
@@ -170,9 +170,9 @@ app.post("/register", async (req, res) => {
             token,
             user: {
                 id: userInfo.id,
-                name: userInfo.full_name,
+                full_name: userInfo.full_name,
                 email: userInfo.email,
-                phone: userInfo.phone,
+                phone_number: userInfo.phone_number,
                 createdAt: userInfo.created_at,
             },
         })
@@ -186,7 +186,7 @@ app.post("/register", async (req, res) => {
 // Get Profile
 app.get("/profile", authenticateToken, async (req, res) => {
     try {
-        const user = await pool.query("SELECT id, full_name as name, email, phone, created_at FROM users WHERE id = $1", [
+        const user = await pool.query("SELECT id, full_name, email, phone_number, created_at FROM users WHERE id = $1", [
             req.user.id,
         ])
 
@@ -203,12 +203,12 @@ app.get("/profile", authenticateToken, async (req, res) => {
 
 // Update Profile
 app.put("/profile", authenticateToken, async (req, res) => {
-    const { name, phone, email } = req.body
+    const { full_name, phone_number, email } = req.body
 
     try {
         const updatedUser = await pool.query(
-            "UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), email = COALESCE($3, email) WHERE id = $4 RETURNING id, full_name as name, email, phone, created_at",
-            [name, phone, email, req.user.id],
+            "UPDATE users SET full_name = COALESCE($1, full_name), phone_number = COALESCE($2, phone_number), email = COALESCE($3, email) WHERE id = $4 RETURNING id, full_name, email, phone_number, created_at",
+            [full_name, phone_number, email, req.user.id],
         )
 
         res.json(updatedUser.rows[0])
