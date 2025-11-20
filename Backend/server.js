@@ -38,6 +38,45 @@ app.get("/", (req, res) => {
     res.send("ParkEasy Backend funcionando ...")
 })
 
+app.get("/test-db", async (req, res) => {
+    try {
+        const result = await pool.query("SELECT NOW()")
+        res.json({
+            success: true,
+            message: "Database connected",
+            timestamp: result.rows[0].now,
+        })
+    } catch (error) {
+        console.error("[Backend] Database connection error:", error.message)
+        res.status(500).json({
+            success: false,
+            message: "Database connection failed",
+            error: error.message,
+        })
+    }
+})
+
+app.get("/test-tables", async (req, res) => {
+    try {
+        const tables = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `)
+        res.json({
+            success: true,
+            tables: tables.rows.map((t) => t.table_name),
+        })
+    } catch (error) {
+        console.error("[Backend] Tables check error:", error.message)
+        res.status(500).json({
+            success: false,
+            message: "Failed to check tables",
+            error: error.message,
+        })
+    }
+})
+
 // ============== AUTH ENDPOINTS ==============
 
 // Login
