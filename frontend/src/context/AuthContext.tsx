@@ -1,75 +1,120 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { authAPI, vehicleAPI } from "../services/api"
 
 type User = {
     id: string
     name: string
     email: string
     phone: string
-    vehicles: { plate: string; model: string }[]
+    vehicles: { id: string; plate: string; model: string; color?: string }[]
 }
 
 type AuthContextType = {
     user: User | null
     isAuthenticated: boolean
+    loading: boolean
     login: (email: string, password: string) => Promise<void>
     register: (name: string, email: string, password: string, phone: string) => Promise<void>
     logout: () => void
+    refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const savedUser = localStorage.getItem("parkingUser")
-        if (savedUser) {
-            setUser(JSON.parse(savedUser))
+        const loadUser = async () => {
+            const token = localStorage.getItem("token")
+            if (token) {
+                try {
+                    const userData = await authAPI.getProfile()
+                    const vehicles = await vehicleAPI.getVehicles()
+                    setUser({ ...userData, vehicles })
+                } catch (error) {
+                    console.error("[v0] Error loading user:", error)
+                    localStorage.removeItem("token")
+                    localStorage.removeItem("parkingUser")
+                }
+            }
+            setLoading(false)
         }
+        loadUser()
     }, [])
 
     const login = async (email: string, password: string) => {
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        try {
+            const response = await authAPI.login(email, password)
+            localStorage.setItem("token", response.token)
 
-        const userData: User = {
-            id: "1",
-            name: "Usuario Demo",
-            email,
-            phone: "+57 300 123 4567",
-            vehicles: [{ plate: "ABC-123", model: "Toyota Corolla 2020" }],
+            const userData = await authAPI.getProfile()
+            const vehicles = await vehicleAPI.getVehicles()
+
+            const fullUser: User = {
+                id: userData.id,
+                name: userData.name,
+                email: userData.email,
+                phone: userData.phone,
+                vehicles,
+            }
+
+            setUser(fullUser)
+            localStorage.setItem("parkingUser", JSON.stringify(fullUser))
+        } catch (error: any) {
+            console.error("[v0] Login error:", error)
+            throw new Error(error.response?.data?.message || "Error al iniciar sesión")
         }
-
-        setUser(userData)
-        localStorage.setItem("parkingUser", JSON.stringify(userData))
     }
 
     const register = async (name: string, email: string, password: string, phone: string) => {
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        try {
+            const response = await authAPI.register(name, email, password, phone)
+            localStorage.setItem("token", response.token)
 
-        const userData: User = {
-            id: Math.random().toString(36).substr(2, 9),
-            name,
-            email,
-            phone,
-            vehicles: [],
+            const userData = await authAPI.getProfile()
+            const vehicles = await vehicleAPI.getVehicles()
+
+            const fullUser: User = {
+                id: userData.id,
+                name: userData.name,
+                email: userData.email,
+                phone: userData.phone,
+                vehicles,
+            }
+
+            setUser(fullUser)
+            localStorage.setItem("parkingUser", JSON.stringify(fullUser))
+        } catch (error: any) {
+            console.error("[v0] Register error:", error)
+            throw new Error(error.response?.data?.message || "Error al registrarse")
         }
-
-        setUser(userData)
-        localStorage.setItem("parkingUser", JSON.stringify(userData))
     }
 
     const logout = () => {
         setUser(null)
+        localStorage.removeItem("token")
         localStorage.removeItem("parkingUser")
         localStorage.removeItem("activeParking")
     }
 
+    const refreshUser = async () => {
+        try {
+            const userData = await authAPI.getProfile()
+            const vehicles = await vehicleAPI.getVehicles()
+            const fullUser: User = { ...userData, vehicles }
+            setUser(fullUser)
+            localStorage.setItem("parkingUser", JSON.stringify(fullUser))
+        } catch (error) {
+            console.error("[v0] Error refreshing user:", error)
+        }
+    }
+
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, register, logout, refreshUser }}>
             {children}
         </AuthContext.Provider>
     )

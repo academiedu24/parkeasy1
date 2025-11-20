@@ -1,22 +1,23 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { parkingAPI, sessionAPI, rateAPI } from "../services/api"
 
 export type ParkingSpace = {
     id: string
-    number: string
+    space_number: string
     status: "available" | "occupied"
-    vehicle?: string
-    userId?: string
-    entryTime?: string
+    floor?: string
+    section?: string
 }
 
 export type ActiveParking = {
+    sessionId: string
     spaceId: string
     spaceNumber: string
     vehicle: string
+    vehicleId: string
     entryTime: string
-    userId: string
 }
 
 export type ParkingHistory = {
@@ -27,107 +28,153 @@ export type ParkingHistory = {
     cost: string
     entryTime: string
     exitTime: string
+    paymentStatus: string
 }
 
 type ParkingContextType = {
     spaces: ParkingSpace[]
     activeParking: ActiveParking | null
     parkingHistory: ParkingHistory[]
-    startParking: (spaceId: string, vehicle: string, userId: string) => void
-    endParking: () => { duration: string; cost: number }
+    loading: boolean
+    hourlyRate: number
+    refreshSpaces: () => Promise<void>
+    refreshActiveSession: () => Promise<void>
+    refreshHistory: () => Promise<void>
+    startParking: (spaceId: string, vehicleId: string, vehiclePlate: string) => Promise<void>
+    endParking: () => Promise<{ duration: string; cost: number }>
     getAvailableCount: () => number
     getOccupiedCount: () => number
 }
 
 const ParkingContext = createContext<ParkingContextType | undefined>(undefined)
 
-const initialSpaces: ParkingSpace[] = [
-    { id: "1", number: "A-01", status: "available" },
-    { id: "2", number: "A-02", status: "available" },
-    { id: "3", number: "A-03", status: "available" },
-    { id: "4", number: "A-04", status: "available" },
-    { id: "5", number: "A-05", status: "available" },
-]
-
 export function ParkingProvider({ children }: { children: ReactNode }) {
-    const [spaces, setSpaces] = useState<ParkingSpace[]>(initialSpaces)
+    const [spaces, setSpaces] = useState<ParkingSpace[]>([])
     const [activeParking, setActiveParking] = useState<ActiveParking | null>(null)
     const [parkingHistory, setParkingHistory] = useState<ParkingHistory[]>([])
+    const [loading, setLoading] = useState(true)
+    const [hourlyRate, setHourlyRate] = useState(2.5)
 
     useEffect(() => {
-        const savedSpaces = localStorage.getItem("parkingSpaces")
-        const savedActive = localStorage.getItem("activeParking")
-        const savedHistory = localStorage.getItem("parkingHistory")
-
-        if (savedSpaces) setSpaces(JSON.parse(savedSpaces))
-        if (savedActive) setActiveParking(JSON.parse(savedActive))
-        if (savedHistory) setParkingHistory(JSON.parse(savedHistory))
+        const loadData = async () => {
+            try {
+                await Promise.all([refreshSpaces(), refreshActiveSession(), refreshHistory(), loadRate()])
+            } catch (error) {
+                console.error("[v0] Error loading parking data:", error)
+            } finally {
+                setLoading(false)
+            }
+        }
+        loadData()
     }, [])
 
-    useEffect(() => {
-        localStorage.setItem("parkingSpaces", JSON.stringify(spaces))
-    }, [spaces])
-
-    const startParking = (spaceId: string, vehicle: string, userId: string) => {
-        const space = spaces.find((s) => s.id === spaceId)
-        if (!space || space.status !== "available") return
-
-        const now = new Date()
-        const entryTime = now.toISOString()
-
-        const newActiveParking: ActiveParking = {
-            spaceId,
-            spaceNumber: space.number,
-            vehicle,
-            entryTime,
-            userId,
+    const loadRate = async () => {
+        try {
+            const rate = await rateAPI.getCurrentRate()
+            setHourlyRate(rate.rate_per_hour)
+        } catch (error) {
+            console.error("[v0] Error loading rate:", error)
         }
-
-        setActiveParking(newActiveParking)
-        localStorage.setItem("activeParking", JSON.stringify(newActiveParking))
-
-        setSpaces((prev) =>
-            prev.map((s) => (s.id === spaceId ? { ...s, status: "occupied", vehicle, userId, entryTime } : s)),
-        )
     }
 
-    const endParking = () => {
+    const refreshSpaces = async () => {
+        try {
+            const spacesData = await parkingAPI.getSpaces()
+            setSpaces(spacesData)
+        } catch (error) {
+            console.error("[v0] Error loading spaces:", error)
+        }
+    }
+
+    const refreshActiveSession = async () => {
+        try {
+            const session = await sessionAPI.getActiveSession()
+            if (session) {
+                setActiveParking({
+                    sessionId: session.id,
+                    spaceId: session.parking_space_id,
+                    spaceNumber: session.space_number,
+                    vehicle: session.vehicle_plate,
+                    vehicleId: session.vehicle_id,
+                    entryTime: session.entry_time,
+                })
+            } else {
+                setActiveParking(null)
+            }
+        } catch (error) {
+            console.error("[v0] Error loading active session:", error)
+            setActiveParking(null)
+        }
+    }
+
+    const refreshHistory = async () => {
+        try {
+            const history = await sessionAPI.getHistory()
+            const formattedHistory = history.map((session: any) => ({
+                id: session.id,
+                date: new Date(session.entry_time).toLocaleDateString("es-CO"),
+                space: session.space_number,
+                duration: session.duration || "N/A",
+                cost: session.total_cost ? `$${session.total_cost}` : "Pendiente",
+                entryTime: new Date(session.entry_time).toLocaleTimeString("es-CO", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                }),
+                exitTime: session.exit_time
+                    ? new Date(session.exit_time).toLocaleTimeString("es-CO", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })
+                    : "Activo",
+                paymentStatus: session.payment_status || "pending",
+            }))
+            setParkingHistory(formattedHistory)
+        } catch (error) {
+            console.error("[v0] Error loading history:", error)
+        }
+    }
+
+    const startParking = async (spaceId: string, vehicleId: string, vehiclePlate: string) => {
+        try {
+            const session = await sessionAPI.startSession(spaceId, vehicleId)
+
+            const space = spaces.find((s) => s.id === spaceId)
+
+            const newActiveParking: ActiveParking = {
+                sessionId: session.id,
+                spaceId,
+                spaceNumber: space?.space_number || "",
+                vehicle: vehiclePlate,
+                vehicleId,
+                entryTime: session.entry_time,
+            }
+
+            setActiveParking(newActiveParking)
+            await refreshSpaces()
+        } catch (error: any) {
+            console.error("[v0] Error starting parking:", error)
+            throw new Error(error.response?.data?.message || "Error al iniciar sesión de parqueo")
+        }
+    }
+
+    const endParking = async () => {
         if (!activeParking) return { duration: "0m", cost: 0 }
 
-        const entry = new Date(activeParking.entryTime)
-        const exit = new Date()
-        const durationMs = exit.getTime() - entry.getTime()
-        const hours = Math.floor(durationMs / (1000 * 60 * 60))
-        const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+        try {
+            const result = await sessionAPI.endSession(activeParking.sessionId)
 
-        const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
-        const cost = Math.max(2, Math.ceil((durationMs / (1000 * 60 * 60)) * 2)) // $2 per hour, minimum $2
+            setActiveParking(null)
+            await refreshSpaces()
+            await refreshHistory()
 
-        const historyEntry: ParkingHistory = {
-            id: Date.now().toString(),
-            date: exit.toLocaleDateString("es-CO"),
-            space: activeParking.spaceNumber,
-            duration,
-            cost: `$${cost.toFixed(2)}`,
-            entryTime: entry.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
-            exitTime: exit.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
+            return {
+                duration: result.duration || "0m",
+                cost: result.total_cost || 0,
+            }
+        } catch (error: any) {
+            console.error("[v0] Error ending parking:", error)
+            throw new Error(error.response?.data?.message || "Error al finalizar sesión")
         }
-
-        setParkingHistory((prev) => [historyEntry, ...prev])
-        localStorage.setItem("parkingHistory", JSON.stringify([historyEntry, ...parkingHistory]))
-
-        setSpaces((prev) =>
-            prev.map((s) =>
-                s.id === activeParking.spaceId
-                    ? { ...s, status: "available", vehicle: undefined, userId: undefined, entryTime: undefined }
-                    : s,
-            ),
-        )
-
-        setActiveParking(null)
-        localStorage.removeItem("activeParking")
-
-        return { duration, cost }
     }
 
     const getAvailableCount = () => spaces.filter((s) => s.status === "available").length
@@ -139,6 +186,11 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
                 spaces,
                 activeParking,
                 parkingHistory,
+                loading,
+                hourlyRate,
+                refreshSpaces,
+                refreshActiveSession,
+                refreshHistory,
                 startParking,
                 endParking,
                 getAvailableCount,

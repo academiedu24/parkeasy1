@@ -15,7 +15,10 @@ export default function ParkingSpacesPage() {
     const { spaces, activeParking, startParking, getAvailableCount, getOccupiedCount } = useParking()
     const { user } = useAuth()
 
-    const filteredSpaces = spaces.filter((space) => space.number.toLowerCase().includes(searchTerm.toLowerCase()))
+    const filteredSpaces = spaces.filter((space) => {
+        const label = ((space as any).number ?? space.id).toString().toLowerCase()
+        return label.includes(searchTerm.toLowerCase())
+    })
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -110,9 +113,9 @@ export default function ParkingSpacesPage() {
             <div className="grid grid-cols-2 grid-md-3 grid-lg-4">
                 {filteredSpaces.map((space) => (
                     <div key={space.id} className={`space-card ${getStatusColor(space.status)}`}>
-                        <p className="space-number">{space.number}</p>
+                        <p className="space-number">{(space as any).number ?? space.id}</p>
                         <span className="space-badge">{getStatusText(space.status)}</span>
-                        {space.vehicle && <p className="space-vehicle">Placa: {space.vehicle}</p>}
+                        {(space as any).vehicle && <p className="space-vehicle">Placa: {(space as any).vehicle}</p>}
                         {space.status === "available" && !activeParking && (
                             <button
                                 onClick={() => handleStartParking(space.id)}

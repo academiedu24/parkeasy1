@@ -33,8 +33,8 @@ export default function MyParkingPage() {
         return () => clearInterval(interval)
     }, [activeParking])
 
-    const handleEndSession = () => {
-        const result = endParking()
+    const handleEndSession = async () => {
+        const result = await endParking()
         navigate("/payment", { state: { duration: result.duration, cost: result.cost } })
     }
 
