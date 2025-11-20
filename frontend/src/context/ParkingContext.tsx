@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { parkingAPI, sessionAPI, rateAPI } from "../services/api"
+import { useAuth } from "./AuthContext"
 
 export type ParkingSpace = {
     id: string
@@ -55,7 +56,18 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
     const [hourlyRate, setHourlyRate] = useState(2.5)
 
+    const { isAuthenticated, loading: authLoading } = useAuth()
+
     useEffect(() => {
+        if (authLoading) {
+            return
+        }
+
+        if (!isAuthenticated) {
+            setLoading(false)
+            return
+        }
+
         const loadData = async () => {
             try {
                 await Promise.all([refreshSpaces(), refreshActiveSession(), refreshHistory(), loadRate()])
@@ -66,7 +78,7 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
             }
         }
         loadData()
-    }, [])
+    }, [isAuthenticated, authLoading])
 
     const loadRate = async () => {
         try {
@@ -78,6 +90,8 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     }
 
     const refreshSpaces = async () => {
+        if (!isAuthenticated) return
+
         try {
             const spacesData = await parkingAPI.getSpaces()
             setSpaces(spacesData)
@@ -87,6 +101,8 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     }
 
     const refreshActiveSession = async () => {
+        if (!isAuthenticated) return
+
         try {
             const session = await sessionAPI.getActiveSession()
             if (session) {
@@ -108,6 +124,8 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     }
 
     const refreshHistory = async () => {
+        if (!isAuthenticated) return
+
         try {
             const history = await sessionAPI.getHistory()
             const formattedHistory = history.map((session: any) => ({

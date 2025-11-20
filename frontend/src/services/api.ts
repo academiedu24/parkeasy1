@@ -1,9 +1,9 @@
 import axios from "axios"
 
-const VITE_URL = "https://parkeasy1.onrender.com"
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? ""
 
 const api = axios.create({
-    baseURL: VITE_URL,
+    baseURL: API_URL,
     headers: {
         "Content-Type": "application/json",
     },
@@ -28,9 +28,12 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem("token")
-            localStorage.removeItem("parkingUser")
-            window.location.href = "/login"
+            const currentPath = window.location.pathname
+            if (currentPath !== "/login" && currentPath !== "/register") {
+                localStorage.removeItem("token")
+                localStorage.removeItem("parkingUser")
+                window.location.href = "/login"
+            }
         }
         return Promise.reject(error)
     },
