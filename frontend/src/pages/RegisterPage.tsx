@@ -32,12 +32,19 @@ export default function RegisterPage() {
             return
         }
 
+        if (formData.password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres")
+            return
+        }
+
         setLoading(true)
         try {
+            console.log("[v0] Attempting register with:", { name: formData.name, email: formData.email })
             await register(formData.name, formData.email, formData.password, formData.phone)
             navigate("/dashboard")
-        } catch (err) {
-            setError("Error al registrarse. Intenta de nuevo.")
+        } catch (err: any) {
+            console.error("[v0] Register error:", err)
+            setError(err.message || "Error al registrarse. Intenta de nuevo.")
         } finally {
             setLoading(false)
         }

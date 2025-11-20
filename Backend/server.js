@@ -13,7 +13,6 @@ app.use(
     }),
 )
 
-
 const PORT = process.env.PORT || 3000
 const jwtSecret = process.env.JWT_SECRET || "your-secret-key-here"
 
@@ -82,6 +81,12 @@ app.post("/register", async (req, res) => {
     const { name, email, password, phone } = req.body
 
     try {
+        console.log("[Backend] Register request received:", { name, email, phone })
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ message: "Todos los campos son requeridos" })
+        }
+
         const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email])
 
         if (existingUser.rows.length > 0) {
@@ -92,10 +97,11 @@ app.post("/register", async (req, res) => {
 
         const newUser = await pool.query(
             "INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING *",
-            [name, email, hashedPassword, phone],
+            [name, email, hashedPassword, phone || null],
         )
 
         const userInfo = newUser.rows[0]
+        console.log("[Backend] User created:", userInfo.id)
 
         const token = jwt.sign({ id: userInfo.id, email: userInfo.email }, jwtSecret, { expiresIn: "24h" })
 
@@ -110,8 +116,9 @@ app.post("/register", async (req, res) => {
             },
         })
     } catch (error) {
-        console.error(error.message)
-        res.status(500).json({ message: "Error del servidor" })
+        console.error("[Backend] Register error:", error.message)
+        console.error("[Backend] Error stack:", error.stack)
+        res.status(500).json({ message: "Error del servidor: " + error.message })
     }
 })
 

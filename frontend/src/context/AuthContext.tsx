@@ -72,11 +72,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const register = async (name: string, email: string, password: string, phone: string) => {
         try {
+            console.log("[v0] Calling register API with:", { name, email, phone })
             const response = await authAPI.register(name, email, password, phone)
+            console.log("[v0] Register response:", response)
+
             localStorage.setItem("token", response.token)
 
             const userData = await authAPI.getProfile()
+            console.log("[v0] Profile data:", userData)
+
             const vehicles = await vehicleAPI.getVehicles()
+            console.log("[v0] Vehicles data:", vehicles)
 
             const fullUser: User = {
                 id: userData.id,
@@ -90,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem("parkingUser", JSON.stringify(fullUser))
         } catch (error: any) {
             console.error("[v0] Register error:", error)
+            console.error("[v0] Error response:", error.response?.data)
             throw new Error(error.response?.data?.message || "Error al registrarse")
         }
     }
