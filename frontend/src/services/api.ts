@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const API_URL = (import.meta as any).env?.VITE_API_URL ?? ""
+const API_URL = (import.meta as any).env?.VITE_API_URL || "https://parkeasy1.onrender.com"
 
 const api = axios.create({
     baseURL: API_URL,
@@ -47,7 +47,12 @@ export const authAPI = {
     },
 
     register: async (name: string, email: string, password: string, phone: string) => {
-        const response = await api.post("/register", { name, email, password, phone })
+        const response = await api.post("/register", {
+            full_name: name,
+            email,
+            password,
+            phone_number: phone,
+        })
         return response.data
     },
 
@@ -57,7 +62,12 @@ export const authAPI = {
     },
 
     updateProfile: async (data: { name?: string; phone?: string; email?: string }) => {
-        const response = await api.put("/profile", data)
+        const payload: any = {}
+        if (data.name) payload.full_name = data.name
+        if (data.phone) payload.phone_number = data.phone
+        if (data.email) payload.email = data.email
+
+        const response = await api.put("/profile", payload)
         return response.data
     },
 }

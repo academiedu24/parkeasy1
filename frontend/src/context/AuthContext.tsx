@@ -56,9 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             const fullUser: User = {
                 id: userData.id,
-                name: userData.name,
+                name: userData.full_name || userData.name,
                 email: userData.email,
-                phone: userData.phone,
+                phone: userData.phone_number || userData.phone,
                 vehicles,
             }
 
@@ -86,9 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             const fullUser: User = {
                 id: userData.id,
-                name: userData.name,
+                name: userData.full_name || userData.name,
                 email: userData.email,
-                phone: userData.phone,
+                phone: userData.phone_number || userData.phone,
                 vehicles,
             }
 
@@ -112,7 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const userData = await authAPI.getProfile()
             const vehicles = await vehicleAPI.getVehicles()
-            const fullUser: User = { ...userData, vehicles }
+            const fullUser: User = {
+                ...userData,
+                name: userData.full_name || userData.name,
+                phone: userData.phone_number || userData.phone,
+                vehicles,
+            }
             setUser(fullUser)
             localStorage.setItem("parkingUser", JSON.stringify(fullUser))
         } catch (error) {

@@ -77,6 +77,28 @@ app.get("/test-tables", async (req, res) => {
     }
 })
 
+app.get("/test-users-structure", async (req, res) => {
+    try {
+        const columns = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+      ORDER BY ordinal_position
+    `)
+        res.json({
+            success: true,
+            columns: columns.rows,
+        })
+    } catch (error) {
+        console.error("[Backend] Users structure check error:", error.message)
+        res.status(500).json({
+            success: false,
+            message: "Failed to check users table structure",
+            error: error.message,
+        })
+    }
+})
+
 // ============== AUTH ENDPOINTS ==============
 
 // Login
@@ -103,7 +125,7 @@ app.post("/login", async (req, res) => {
             token,
             user: {
                 id: userInfo.id,
-                name: userInfo.name,
+                name: userInfo.full_name,
                 email: userInfo.email,
                 phone: userInfo.phone,
                 createdAt: userInfo.created_at,
@@ -135,7 +157,7 @@ app.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10)
 
         const newUser = await pool.query(
-            "INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING *",
+            "INSERT INTO users (full_name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING *",
             [name, email, hashedPassword, phone || null],
         )
 
@@ -148,7 +170,7 @@ app.post("/register", async (req, res) => {
             token,
             user: {
                 id: userInfo.id,
-                name: userInfo.name,
+                name: userInfo.full_name,
                 email: userInfo.email,
                 phone: userInfo.phone,
                 createdAt: userInfo.created_at,
@@ -164,7 +186,9 @@ app.post("/register", async (req, res) => {
 // Get Profile
 app.get("/profile", authenticateToken, async (req, res) => {
     try {
-        const user = await pool.query("SELECT id, name, email, phone, created_at FROM users WHERE id = $1", [req.user.id])
+        const user = await pool.query("SELECT id, full_name as name, email, phone, created_at FROM users WHERE id = $1", [
+            req.user.id,
+        ])
 
         if (user.rows.length === 0) {
             return res.status(404).json({ message: "Usuario no encontrado" })
@@ -183,7 +207,7 @@ app.put("/profile", authenticateToken, async (req, res) => {
 
     try {
         const updatedUser = await pool.query(
-            "UPDATE users SET name = COALESCE($1, name), phone = COALESCE($2, phone), email = COALESCE($3, email) WHERE id = $4 RETURNING id, name, email, phone, created_at",
+            "UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), email = COALESCE($3, email) WHERE id = $4 RETURNING id, full_name as name, email, phone, created_at",
             [name, phone, email, req.user.id],
         )
 
