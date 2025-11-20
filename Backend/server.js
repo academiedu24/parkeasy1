@@ -229,8 +229,8 @@ app.get("/parking-spaces", authenticateToken, async (req, res) => {
                 CASE 
                     WHEN EXISTS (
                         SELECT 1 FROM parking_sessions 
-                        WHERE parking_space_id = ps.id 
-                        AND end_time IS NULL
+                        WHERE space_id = ps.id 
+                        AND exit_time IS NULL
                     ) THEN 'occupied'
                     WHEN ps.status = 'available' THEN 'available'
                     ELSE ps.status
@@ -268,18 +268,18 @@ app.get("/parking-spaces/:id", authenticateToken, async (req, res) => {
 
 // Start parking session
 app.post("/parking-sessions/start", authenticateToken, async (req, res) => {
-    const { parking_space_id, vehicle_id } = req.body
+    const { space_id, vehicle_id } = req.body
 
     try {
         // Verificar si el espacio está disponible
-        const space = await pool.query("SELECT * FROM parking_spaces WHERE id = $1", [parking_space_id])
+        const space = await pool.query("SELECT * FROM parking_spaces WHERE id = $1", [space_id])
 
         if (space.rows.length === 0) {
             return res.status(404).json({ message: "Espacio no encontrado" })
         }
 
         // Verificar si el usuario ya tiene una sesión activa
-        const activeSession = await pool.query("SELECT * FROM parking_sessions WHERE user_id = $1 AND end_time IS NULL", [
+        const activeSession = await pool.query("SELECT * FROM parking_sessions WHERE user_id = $1 AND exit_time IS NULL", [
             req.user.id,
         ])
 
@@ -288,19 +288,25 @@ app.post("/parking-sessions/start", authenticateToken, async (req, res) => {
         }
 
         // Verificar si el espacio está ocupado
-        const occupiedSpace = await pool.query(
-            "SELECT * FROM parking_sessions WHERE parking_space_id = $1 AND end_time IS NULL",
-            [parking_space_id],
-        )
+        const occupiedSpace = await pool.query("SELECT * FROM parking_sessions WHERE space_id = $1 AND exit_time IS NULL", [
+            space_id,
+        ])
 
         if (occupiedSpace.rows.length > 0) {
             return res.status(400).json({ message: "Este espacio ya está ocupado" })
         }
 
+        // Obtener la placa del vehículo
+        const vehicle = await pool.query("SELECT license_plate FROM vehicles WHERE id = $1", [vehicle_id])
+
+        if (vehicle.rows.length === 0) {
+            return res.status(404).json({ message: "Vehículo no encontrado" })
+        }
+
         // Crear nueva sesión
         const newSession = await pool.query(
-            "INSERT INTO parking_sessions (user_id, parking_space_id, vehicle_id, start_time) VALUES ($1, $2, $3, NOW()) RETURNING *",
-            [req.user.id, parking_space_id, vehicle_id],
+            "INSERT INTO parking_sessions (user_id, space_id, vehicle_id, license_plate, entry_time) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
+            [req.user.id, space_id, vehicle_id, vehicle.rows[0].license_plate],
         )
 
         res.json(newSession.rows[0])
@@ -321,24 +327,25 @@ app.post("/parking-sessions/:id/end", authenticateToken, async (req, res) => {
             return res.status(404).json({ message: "Sesión no encontrada" })
         }
 
-        if (session.rows[0].end_time) {
+        if (session.rows[0].exit_time) {
             return res.status(400).json({ message: "Esta sesión ya ha terminado" })
         }
 
         // Obtener la tarifa actual
-        const rate = await pool.query("SELECT hourly_rate FROM rates WHERE is_active = true LIMIT 1")
-        const hourlyRate = rate.rows.length > 0 ? rate.rows[0].hourly_rate : 2.5
+        const rate = await pool.query("SELECT rate_per_hour FROM pricing WHERE is_active = true LIMIT 1")
+        const hourlyRate = rate.rows.length > 0 ? rate.rows[0].rate_per_hour : 2.5
 
         // Calcular el tiempo y costo
-        const startTime = new Date(session.rows[0].start_time)
-        const endTime = new Date()
-        const hours = Math.max((endTime - startTime) / (1000 * 60 * 60), 0.25) // Mínimo 15 minutos
+        const entryTime = new Date(session.rows[0].entry_time)
+        const exitTime = new Date()
+        const hours = Math.max((exitTime - entryTime) / (1000 * 60 * 60), 0.25) // Mínimo 15 minutos
         const totalCost = Number.parseFloat((hours * hourlyRate).toFixed(2))
+        const durationMinutes = Math.ceil((exitTime - entryTime) / (1000 * 60))
 
         // Actualizar la sesión
         const updatedSession = await pool.query(
-            "UPDATE parking_sessions SET end_time = $1, total_cost = $2 WHERE id = $3 RETURNING *",
-            [endTime, totalCost, id],
+            "UPDATE parking_sessions SET exit_time = $1, total_cost = $2, duration_minutes = $3, status = 'completed' WHERE id = $4 RETURNING *",
+            [exitTime, totalCost, durationMinutes, id],
         )
 
         res.json(updatedSession.rows[0])
@@ -356,13 +363,13 @@ app.get("/parking-sessions/active", authenticateToken, async (req, res) => {
             SELECT 
                 ps.*,
                 pspace.space_number,
-                pspace.location,
-                v.plate as vehicle_plate,
+                pspace.floor as location,
+                v.license_plate as vehicle_plate,
                 v.model as vehicle_model
             FROM parking_sessions ps
-            JOIN parking_spaces pspace ON ps.parking_space_id = pspace.id
+            JOIN parking_spaces pspace ON ps.space_id = pspace.id
             JOIN vehicles v ON ps.vehicle_id = v.id
-            WHERE ps.user_id = $1 AND ps.end_time IS NULL
+            WHERE ps.user_id = $1 AND ps.exit_time IS NULL
             LIMIT 1
         `,
             [req.user.id],
@@ -387,14 +394,14 @@ app.get("/parking-sessions/history", authenticateToken, async (req, res) => {
             SELECT 
                 ps.*,
                 pspace.space_number,
-                pspace.location,
-                v.plate as vehicle_plate,
+                pspace.floor as location,
+                v.license_plate as vehicle_plate,
                 v.model as vehicle_model
             FROM parking_sessions ps
-            JOIN parking_spaces pspace ON ps.parking_space_id = pspace.id
+            JOIN parking_spaces pspace ON ps.space_id = pspace.id
             JOIN vehicles v ON ps.vehicle_id = v.id
-            WHERE ps.user_id = $1 AND ps.end_time IS NOT NULL
-            ORDER BY ps.end_time DESC
+            WHERE ps.user_id = $1 AND ps.exit_time IS NOT NULL
+            ORDER BY ps.exit_time DESC
             LIMIT 20
         `,
             [req.user.id],
@@ -425,12 +432,12 @@ app.get("/vehicles", authenticateToken, async (req, res) => {
 
 // Add vehicle
 app.post("/vehicles", authenticateToken, async (req, res) => {
-    const { plate, model, color } = req.body
+    const { plate, brand, model, color } = req.body
 
     try {
         const newVehicle = await pool.query(
-            "INSERT INTO vehicles (user_id, plate, model, color) VALUES ($1, $2, $3, $4) RETURNING *",
-            [req.user.id, plate, model, color],
+            "INSERT INTO vehicles (user_id, license_plate, brand, model, color) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            [req.user.id, plate, brand, model, color],
         )
 
         res.json(newVehicle.rows[0])
@@ -465,12 +472,12 @@ app.delete("/vehicles/:id", authenticateToken, async (req, res) => {
 
 // Create payment
 app.post("/payments", authenticateToken, async (req, res) => {
-    const { session_id, amount, payment_method } = req.body
+    const { session_id, amount, payment_method, card_last_four } = req.body
 
     try {
         const newPayment = await pool.query(
-            "INSERT INTO payments (user_id, session_id, amount, payment_method, payment_date, status) VALUES ($1, $2, $3, $4, NOW(), $5) RETURNING *",
-            [req.user.id, session_id, amount, payment_method, "completed"],
+            "INSERT INTO payments (user_id, session_id, amount, payment_method, card_last_four, paid_at, payment_status) VALUES ($1, $2, $3, $4, $5, NOW(), $6) RETURNING *",
+            [req.user.id, session_id, amount, payment_method, card_last_four || null, "completed"],
         )
 
         res.json(newPayment.rows[0])
@@ -487,14 +494,14 @@ app.get("/payments/history", authenticateToken, async (req, res) => {
             `
             SELECT 
                 p.*,
-                ps.start_time,
-                ps.end_time,
+                ps.entry_time,
+                ps.exit_time,
                 pspace.space_number
             FROM payments p
             JOIN parking_sessions ps ON p.session_id = ps.id
-            JOIN parking_spaces pspace ON ps.parking_space_id = pspace.id
+            JOIN parking_spaces pspace ON ps.space_id = pspace.id
             WHERE p.user_id = $1
-            ORDER BY p.payment_date DESC
+            ORDER BY p.paid_at DESC
             LIMIT 20
         `,
             [req.user.id],
@@ -512,10 +519,10 @@ app.get("/payments/history", authenticateToken, async (req, res) => {
 // Get current rate
 app.get("/rates/current", authenticateToken, async (req, res) => {
     try {
-        const rate = await pool.query("SELECT * FROM rates WHERE is_active = true LIMIT 1")
+        const rate = await pool.query("SELECT * FROM pricing WHERE is_active = true LIMIT 1")
 
         if (rate.rows.length === 0) {
-            return res.json({ hourly_rate: 2.5 }) // Default rate
+            return res.json({ rate_per_hour: 2.5, currency: "USD" }) // Default rate
         }
 
         res.json(rate.rows[0])
